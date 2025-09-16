@@ -1,41 +1,34 @@
 # client.py
-import asyncio
+import asyncio, os, sys
 from mcp import ClientSession, StdioServerParameters, types
 from mcp.client.stdio import stdio_client
 
 async def main():
-    # 1) Parámetros del servidor a lanzar por stdio (este mismo repo: server.py)
+    # Usa el intérprete actual del venv y desactiva el buffering con -u
     params = StdioServerParameters(
-        command="python",
-        args=["server.py"],
-        env=None
+        command=sys.executable,
+        args=["-u", "server.py"],
+        env=os.environ.copy(),   # hereda OLLAMA_HOST y el venv
     )
 
-    # 2) Conectar por stdio y crear la sesión
     async with stdio_client(params) as (read, write):
         async with ClientSession(read, write) as session:
-            # 3) Inicializar el protocolo MCP
             await session.initialize()
 
-            # 4) Listar herramientas
             tools = await session.list_tools()
             print("🔧 Tools:", [t.name for t in tools.tools])
 
-            # 5) Llamar a la tool 'add'
-            res_add = await session.call_tool("add", {"a": 7, "b": 5})
-            block = res_add.content[0]
-            if isinstance(block, types.TextContent):
-                print("add =>", block.text)
-            else:
-                print("add =>", res_add)
+            res_models = await session.call_tool("list_models", {})
+            block = res_models.content[0]
+            print("📦 Modelos:", block.text if isinstance(block, types.TextContent) else res_models.content)
 
-            # 6) Llamar a la tool 'echo'
-            res_echo = await session.call_tool("echo", {"text": "Hola MCP!"})
-            block = res_echo.content[0]
-            if isinstance(block, types.TextContent):
-                print("echo =>", block.text)
-            else:
-                print("echo =>", res_echo)
+            res_chat = await session.call_tool("llm_chat", {
+                "user": "En una frase: ¿qué es MCP?",
+                "model": "llama3.2",
+                "system": "Eres un asistente técnico, conciso y claro."
+            })
+            block = res_chat.content[0]
+            print("🤖 Respuesta:", block.text if isinstance(block, types.TextContent) else res_chat.content)
 
 if __name__ == "__main__":
     asyncio.run(main())
