@@ -1,142 +1,138 @@
 import os
 import sys
+from pathlib import Path
 from dotenv import load_dotenv
+from langchain_core.documents import Document
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import PromptTemplate
+from langchain_text_splitters import CharacterTextSplitter
 
-# Cargar variables de entorno antes de importar librerías pesadas
+# Load environment variables early
 load_dotenv()
 
-# Verificación simple para evitar errores silenciosos
-if not os.getenv("HUGGINGFACEHUB_API_TOKEN"):
-    print("Error: No se encontró HUGGINGFACEHUB_API_TOKEN en el archivo .env o variables de entorno.")
-    print("Por favor, asegúrate de tener un archivo .env con tu token.")
-    # sys.exit(1) # Descomentar para detener la ejecución si es crítico
+def get_env_int(key: str, default: int) -> int:
+    raw = os.getenv(key)
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
 
-# --- IMPORTACIONES DE LANGCHAIN ---
-# Nota: LangChain ahora es modular. Si alguna falla, revisa requirements.txt
+def get_env_float(key: str, default: float) -> float:
+    raw = os.getenv(key)
+    if raw is None:
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        return default
 
-try:
-    # Cadenas para MapReduce y combinación de documentos
-    from langchain.chains import MapReduceDocumentsChain, ReduceDocumentsChain
-    from langchain.chains.combine_documents.stuff import StuffDocumentsChain
-    from langchain.chains.llm import LLMChain
-    
-    # Prompts y Modelos
-    from langchain_core.prompts import PromptTemplate
-    from langchain_core.documents import Document
-    
-    # Splitters (División de texto)
-    from langchain_text_splitters import CharacterTextSplitter
-    
-    # Integración con Hugging Face (Paquete separado desde LangChain v0.2)
-    from langchain_huggingface import HuggingFaceEndpoint
+def build_llama_model() -> "OllamaLLM":
+    """Init Llama LLM model from localhost."""
+    try:
+        from langchain_ollama import OllamaLLM
+    except ImportError as exc:
+        print(f"Cannot import ChatOpenAI. Install langchain-openai. Details: {exc}")
+        sys.exit(1)
 
-except ImportError as e:
-    print(f"\n❌ Error de Importación: {e}")
-    print("💡 Solución: Ejecuta 'pip install -r requirements.txt'")
-    sys.exit(1)
-
-# ---------------------------------------------------------
-# 1. CONFIGURACIÓN DEL LLM (Hugging Face)
-# ---------------------------------------------------------
-
-# Usaremos Mistral-7B.
-# Nota: Si el modelo da timeout, intenta con un modelo más ligero o aumenta el timeout.
-repo_id = "mistralai/Mistral-7B-Instruct-v0.3"
-
-print(f"🔄 Conectando con Hugging Face Hub ({repo_id})...")
-
-try:
-    llm = HuggingFaceEndpoint(
-        repo_id=repo_id, 
-        temperature=0.1,
-        max_new_tokens=512,
-        timeout=300 # Aumentamos el timeout para evitar errores de red
+    return OllamaLLM(
+        model=os.getenv("OLLAMA_MODEL", "llama3.2"),
+        base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+        temperature=get_env_float("LLM_TEMPERATURE", 0.1),
     )
-except Exception as e:
-    print(f"Error al conectar con el modelo: {e}")
-    sys.exit(1)
 
-# ---------------------------------------------------------
-# 2. GENERACIÓN DE DATOS DE PRUEBA
-# ---------------------------------------------------------
-print("📄 Generando documento de prueba...")
-texto_largo = """
-La inteligencia artificial (IA) ha transformado múltiples industrias en la última década. 
-En el sector salud, se utiliza para diagnósticos tempranos mediante análisis de imágenes.
-La telemedicina ha avanzado gracias a la IA, permitiendo triajes automáticos.
-Por otro lado, en el sector financiero, la IA detecta fraudes en tiempo real analizando patrones de transacciones.
-Los algoritmos de Machine Learning permiten a los bancos predecir riesgos crediticios con mayor precisión.
-Finalmente, en la educación, la IA personalizada adapta el contenido al ritmo de aprendizaje de cada estudiante.
-Las plataformas educativas utilizan procesamiento de lenguaje natural para evaluar ensayos automáticamente.
-""" * 40 # Aumentamos el tamaño para justificar el MapReduce
 
-docs = [Document(page_content=texto_largo)]
+def build_openai_model() -> object:
+    """
+    Init an OpenAI chat model compatible with the LCEL chains used below.
+    Requires langchain-openai and OPENAI_API_KEY.
+    """
+    try:
+        from langchain_openai import ChatOpenAI
+    except ImportError as exc:
+        print(f"Cannot import ChatOpenAI. Install langchain-openai. Details: {exc}")
+        sys.exit(1)
 
-# ---------------------------------------------------------
-# 3. CHUNKING (DIVISIÓN DE DOCUMENTOS)
-# ---------------------------------------------------------
-# Usamos CharacterTextSplitter. Nota: tiktoken debe estar instalado.
-text_splitter = CharacterTextSplitter.from_tiktoken_encoder(
-    chunk_size=1000, 
-    chunk_overlap=0
-)
-split_docs = text_splitter.split_documents(docs)
+    return ChatOpenAI(
+        model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+        temperature=get_env_float("LLM_TEMPERATURE", 0.1),
+    )
 
-print(f"✂️  Documento original dividido en {len(split_docs)} trozos.")
 
-# ---------------------------------------------------------
-# 4. DEFINICIÓN DE CADENAS (MAP Y REDUCE)
-# ---------------------------------------------------------
+def load_text_to_summarize() -> str:
+    """
+    Load source text from a file.
+    Path can be set via SUMMARY_SOURCE_FILE env var (defaults to data/to_summarize.txt).
+    """
+    source_path = Path(os.getenv("SUMMARY_SOURCE_FILE", "data/to_summarize.txt"))
+    print(f"Loading document from: {source_path}")
+    if not source_path.exists():
+        print(f"File not found: {source_path}. Set SUMMARY_SOURCE_FILE or place the file there.")
+        sys.exit(1)
+    try:
+        return source_path.read_text(encoding="utf-8")
+    except Exception as exc:
+        print(f"Error reading {source_path}: {exc}")
+        sys.exit(1)
 
-# Paso MAP: Resume cada trozo individual
-map_template = """The following is a set of documents:
-{docs}
-Based on this list of docs, please identify the main themes concisely.
-Helpful Answer:"""
-map_prompt = PromptTemplate.from_template(map_template)
-map_chain = LLMChain(llm=llm, prompt=map_prompt)
 
-# Paso REDUCE: Combina los resúmenes
-reduce_template = """The following is set of summaries:
-{docs}
-Take these and distill it into a final, consolidated summary of the main themes in Spanish.
-Helpful Answer:"""
-reduce_prompt = PromptTemplate.from_template(reduce_template)
-reduce_chain = LLMChain(llm=llm, prompt=reduce_prompt)
+def main() -> None:
+    # ---------------------------------------------------------
+    # 1. Get LLM Model
+    # ---------------------------------------------------------
+    llm = build_llama_model()
 
-# Cadena para combinar documentos (Stuff)
-combine_documents_chain = StuffDocumentsChain(
-    llm_chain=reduce_chain, 
-    document_variable_name="docs"
-)
+    # ---------------------------------------------------------
+    # 2. Get Full Document
+    # ---------------------------------------------------------
+    text_content = load_text_to_summarize()
+    docs = [Document(page_content=text_content)]
 
-# Cadena de reducción inteligente (Iterativa)
-reduce_documents_chain = ReduceDocumentsChain(
-    combine_documents_chain=combine_documents_chain,
-    collapse_documents_chain=combine_documents_chain,
-    token_max=3000, 
-)
+    # ---------------------------------------------------------
+    # 3. CHUNKING
+    # ---------------------------------------------------------
+    chunk_size = get_env_int("CHUNK_SIZE", 1000)
+    chunk_overlap = get_env_int("CHUNK_OVERLAP", 0)
 
-# Cadena FINAL MapReduce
-map_reduce_chain = MapReduceDocumentsChain(
-    llm_chain=map_chain,
-    reduce_documents_chain=reduce_documents_chain,
-    document_variable_name="docs",
-    return_intermediate_steps=False,
-)
+    text_splitter = CharacterTextSplitter.from_tiktoken_encoder(
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
+    )
+    split_docs = text_splitter.split_documents(docs)
+    print(f"Original document split into {len(split_docs)} chunks.")
 
-# ---------------------------------------------------------
-# 5. EJECUCIÓN
-# ---------------------------------------------------------
-print("🚀 Ejecutando MapReduce (esto puede tardar un poco)...")
+    # ---------------------------------------------------------
+    # 4. MAP AND REDUCE WITH LCEL
+    # ---------------------------------------------------------
+    map_prompt = PromptTemplate.from_template(
+        "You are a helpful assistant. Summarize the main themes of this chunk:\n{chunk}\n\nSummary:"
+    )
+    reduce_prompt = PromptTemplate.from_template(
+        "You are a helpful assistant. Merge the following partial summaries into a concise final summary in Spanish:\n{summaries}\n\nFinal summary:"
+    )
 
-try:
-    # Invocación correcta para LangChain moderno
-    resultado = map_reduce_chain.invoke({"docs": split_docs})
-    
-    print("\n✅ Resultados Finales:")
+    map_chain = map_prompt | llm | StrOutputParser()
+    reduce_chain = reduce_prompt | llm | StrOutputParser()
+
+    # MAP: summarize each chunk in parallel
+    map_inputs = [{"chunk": d.page_content} for d in split_docs]
+    map_summaries = map_chain.batch(map_inputs, config={"max_concurrency": 4})
+
+    # REDUCE: consolidate summaries
+    joined_summaries = "\n\n".join(map_summaries)
+    final_summary = reduce_chain.invoke({"summaries": joined_summaries})
+
+    # ---------------------------------------------------------
+    # 5. RESULTS
+    # ---------------------------------------------------------
+    print("\nFinal Results:")
     print("-" * 20)
-    print(resultado['output_text'])
-    
-except Exception as e:
-    print(f"\n❌ Error durante la ejecución: {e}")
+    print(final_summary)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\nExecution interrupted by user.")
