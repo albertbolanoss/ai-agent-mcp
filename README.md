@@ -41,12 +41,33 @@ pip install -r requirements.txt     # Install dependencies
 source .venv/bin/activate
 ```
 
+## Execute Scripts
 
-## Start MCP Client and MCP Server Demo
+### Run Model Context Protocol Client and Server Demo
 
 ```sh
-
-# Run client
 python client.py
-
 ```
+
+### Run Text Summarize using Map Reduce Tokenizen
+
+optional: to run with openain create the environment variables.
+
+```env
+OLLAMA_MODEL=llama3.2
+OLLAMA_BASE_URL=http://localhost:11434
+OPENAI_MODEL=gpt-4o-mini
+OPENAI_API_KEY=
+LLM_TEMPERATURE=0.1
+SUMMARY_SOURCE_FILE=data/to_summarize.txt
+CHUNK_SIZE=1000
+CHUNK_OVERLAP=0
+```
+
+1. Edit the file data/to_summarize.txt with the context that you want to query
+
+
+```sh
+python src/text_summarize.py
+```
+

@@ -7,6 +7,15 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
 from langchain_text_splitters import CharacterTextSplitter
 
+MAP_PROMPT_DEFAULT = (
+    "You are a helpful assistant. Summarize the main themes of this chunk:\n"
+    "{chunk}\n\nSummary:"
+)
+REDUCE_PROMPT_DEFAULT = (
+    "You are a helpful assistant. Merge the following partial summaries into a concise "
+    "final summary in Spanish:\n{summaries}\n\nFinal summary:"
+)
+
 # Load environment variables early
 load_dotenv()
 
@@ -105,12 +114,11 @@ def main() -> None:
     # ---------------------------------------------------------
     # 4. MAP AND REDUCE WITH LCEL
     # ---------------------------------------------------------
-    map_prompt = PromptTemplate.from_template(
-        "You are a helpful assistant. Summarize the main themes of this chunk:\n{chunk}\n\nSummary:"
-    )
-    reduce_prompt = PromptTemplate.from_template(
-        "You are a helpful assistant. Merge the following partial summaries into a concise final summary in Spanish:\n{summaries}\n\nFinal summary:"
-    )
+    map_prompt_text = os.getenv("MAP_PROMPT", MAP_PROMPT_DEFAULT)
+    reduce_prompt_text = os.getenv("REDUCE_PROMPT", REDUCE_PROMPT_DEFAULT)
+
+    map_prompt = PromptTemplate.from_template(map_prompt_text)
+    reduce_prompt = PromptTemplate.from_template(reduce_prompt_text)
 
     map_chain = map_prompt | llm | StrOutputParser()
     reduce_chain = reduce_prompt | llm | StrOutputParser()
