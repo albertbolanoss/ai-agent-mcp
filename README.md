@@ -1,73 +1,53 @@
-# Agent and Model Context Protocol
+# Labs Chat with MCP & Lang Chains
 
-## Pre-requirements
 
-- Download and install [Ollama](https://ollama.com/download), this will install llama 3.2  LLMs.
+## Prerequisites
+- Python 3.11.x (recommended) and optionally `pyenv`.
+- [Ollama](https://ollama.com/download) installed with `llama3.2` (default local model).
 
-## Install and run llama 3.2
-
+## Install and run an Ollama model
 ```sh
-# Install and run
-ollama run llama3.2
-
-# List the download ollama llms
-ollama list
-
-# other llms models
+ollama run llama3.2      # downloads if needed and runs once
+ollama list              # verify it is available
+# optional additional models
 ollama pull gemma3:12b
 ollama pull qwen3:30b
 ```
 
-## Create virtual environment and install dependencies
-
+## Setup virtual environment and install dependencies
 ```sh
-pyenv install 3.11.9                # Install the python
-pyenv local 3.11.9                  # Setup this version as local
-python --version                    # Check the python version
-python -m venv .venv                # Create the virtual environment 
-source .venv/Scripts/activate       # Activate the virtual environment
-python -m pip install --upgrade pip # Upgrade pip
-pip install -r requirements.txt     # Install dependencies
+pyenv install 3.11.9                # optional: install Python
+pyenv local 3.11.9                  # set local version
+python --version                    # verify
+python -m venv .venv                # create venv
+source .venv/Scripts/activate       # Windows
+# or: source .venv/bin/activate     # Linux/Mac
+python -m pip install --upgrade pip
+pip install -r requirements.txt
 ```
 
+## Setup the environment configuration
 
-## Active the virtual environment (each time you closed session)
-
-```sh
-# Windows
-.venv/Script/activate
-
-# Linux and Mac
-source .venv/bin/activate
-```
-
-## Execute Scripts
-
-### Run Model Context Protocol Client and Server Demo
-
-```sh
-python client.py
-```
-
-### Run Text Summarize using Map Reduce Tokenizen
-
-optional: to run with openain create the environment variables.
+By default, the application will run using llama 3.2 in local mode; to set another configuration, edit the .env file and set the required configuration for the query agent and llm agent.
 
 ```env
-OLLAMA_MODEL=llama3.2
-OLLAMA_BASE_URL=http://localhost:11434
-OPENAI_MODEL=gpt-4o-mini
 OPENAI_API_KEY=
-LLM_TEMPERATURE=0.1
-SUMMARY_SOURCE_FILE=data/to_summarize.txt
-CHUNK_SIZE=1000
-CHUNK_OVERLAP=0
+OLLAMA_BASE_URL=http://localhost:11434
+QUERY_AGENT_PROVIDER=ollama
+QUERY_AGENT_MODEL=llama3.2
+QUERY_AGENT_TEMPERATURE=0.1
+LLM_SERVER_PROVIDER=ollama
+LLM_SERVER_MODEL=llama3.2
+LLM_SERVER_TEMPERATURE=0.7
 ```
 
-1. Edit the file data/to_summarize.txt with the context that you want to query
 
+## Run the client (web + API)
 
 ```sh
-python src/text_summarize.py
+uvicorn startup:app --host 0.0.0.0 --port 8000 --reload
 ```
+
+- Open `http://localhost:8000/` for a minimal chat UI.
+
 
