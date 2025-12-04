@@ -62,6 +62,15 @@ LLM_SERVER_TEMPERATURE=0.7
 OLLAMA_BASE_URL=http://localhost:11434
 ```
 
+## Run tests and coverage
+
+```sh
+# Run tests
+pytest
+
+# Run test with coverage
+pytest --cov=src --cov=tests --cov-report=term-missing
+```
 
 ## Run the client (web + API)
 
