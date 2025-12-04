@@ -22,6 +22,7 @@ jobs:
       - name: Install dependencies
         run: poetry install --no-root
 
-      - name: Run tests with coverage
+      - name: Run tests
         run: |
-          pytest --cov=src --cov=tests --cov-report=term-missing
+          poetry run pytest
+          
