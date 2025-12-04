@@ -7,7 +7,7 @@ from mcp.server.fastmcp import FastMCP
 
 from src.env_vars_utils import get_llm_server
 from src.lang_change_utils import chat_completion
-from src.translate_text import translate_text
+from src.summarize_text import summarize_text
 
 mcp = FastMCP("OllamaBridge")
 
@@ -37,18 +37,16 @@ def llm_chat(
 
 
 @mcp.tool()
-def translate(
+def summarize(
     text: str,
-    target_language: str = "English",
     chunk_size: int = 1000,
     chunk_overlap: int = 0
 ) -> str:
     """
-    Translate text into the target language using chunked map-reduce.
+    Summarize text in its original language using chunked map-reduce.
     """
-    return translate_text(
+    return summarize_text(
         text,
-        target_language=target_language,
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap,
         model=LLM_SERVER_MODEL,

@@ -45,3 +45,9 @@ def get_ollama_base_url() -> str:
     Return Ollama base URL with safe default if env var is missing or blank.
     """
     return os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").strip()
+
+def get_mcp_max_concurrency() -> int:
+    """
+    Return MCP max concurrency with safe default if env var is missing or invalid.
+    """
+    return _env_int("MCP_MAX_CONCURRENCY", 4)

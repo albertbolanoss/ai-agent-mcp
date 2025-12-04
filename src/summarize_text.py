@@ -12,25 +12,25 @@ from src.lang_change_utils import build_chat_model
 
 load_dotenv()
 
-MAP_TRANSLATE_PROMPT_DEFAULT = (
-    "You are a professional translator. Translate the following text into {target_language}. "
-    "Preserve meaning, tone, and as much formatting as practical. Reply with only the translation."
+MAP_SUMMARIZE_PROMPT_DEFAULT = (
+    "You are an expert summarizer. Summarize the following text in its original language. "
+    "Keep the key ideas, tone, and important details concise. Reply only with the summary."
 )
 
-REDUCE_TRANSLATE_PROMPT_DEFAULT = (
-    "You are consolidating translated chunks into one fluent translation in {target_language}. "
-    "Merge the pieces, fix broken sentences, and ensure coherence. Reply with only the final translation."
+REDUCE_SUMMARIZE_PROMPT_DEFAULT = (
+    "You merge partial summaries into one cohesive summary in the source language. "
+    "Combine ideas, remove repetition, and ensure clarity. Reply only with the final summary."
 )
 
 
 def load_text() -> str:
     """
-    Load source text from a file path specified via TRANSLATE_SOURCE_FILE (defaults to data/to_translate.txt).
+    Load source text from a file path specified via SUMMARY_SOURCE_FILE (defaults to data/to_summarize.txt).
     """
-    source_path = Path(os.getenv("TRANSLATE_SOURCE_FILE", "data/to_translate.txt"))
+    source_path = Path(os.getenv("SUMMARY_SOURCE_FILE", "data/to_summarize.txt"))
     print(f"Loading document from: {source_path}")
     if not source_path.exists():
-        print(f"File not found: {source_path}. Set TRANSLATE_SOURCE_FILE or place the file there.")
+        print(f"File not found: {source_path}. Set SUMMARY_SOURCE_FILE or place the file there.")
         sys.exit(1)
     try:
         return source_path.read_text(encoding="utf-8")
@@ -39,21 +39,19 @@ def load_text() -> str:
         sys.exit(1)
 
 
-def translate_text(
+def summarize_text(
     text: str,
     *,
-    target_language: str = "Spanish",
     chunk_size: int = 1000,
     chunk_overlap: int = 0,
     provider: Optional[str] = None,
     model: Optional[str] = None,
     temperature: Optional[float] = None,
-    map_prompt_text: str = MAP_TRANSLATE_PROMPT_DEFAULT,
-    reduce_prompt_text: str = REDUCE_TRANSLATE_PROMPT_DEFAULT,
-    
+    map_prompt_text: str = MAP_SUMMARIZE_PROMPT_DEFAULT,
+    reduce_prompt_text: str = REDUCE_SUMMARIZE_PROMPT_DEFAULT,
 ) -> str:
     """
-    Translate text using a chunked map-reduce strategy to keep token sizes manageable.
+    Summarize text using a chunked map-reduce strategy to keep token sizes manageable.
     """
     llm = build_chat_model(provider=provider, model=model, temperature=temperature)
 
@@ -79,8 +77,8 @@ def translate_text(
     map_chain = map_prompt | llm | StrOutputParser()
     reduce_chain = reduce_prompt | llm | StrOutputParser()
 
-    map_inputs = [{"chunk": chunk, "target_language": target_language} for chunk in split_docs]
+    map_inputs = [{"chunk": chunk} for chunk in split_docs]
     map_summaries = map_chain.batch(map_inputs, config={"max_concurrency": 4})
 
     joined_summaries = "\n\n".join(map_summaries)
-    return reduce_chain.invoke({"summaries": joined_summaries, "target_language": target_language})
+    return reduce_chain.invoke({"summaries": joined_summaries})
