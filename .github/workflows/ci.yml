@@ -24,4 +24,4 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          poetry run pytest --cov=src --cov=tests --cov-report=term-missing
+          pytest --cov=src --cov=tests --cov-report=term-missing

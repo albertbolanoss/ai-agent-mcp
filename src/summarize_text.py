@@ -6,10 +6,8 @@ from typing import Optional
 from dotenv import load_dotenv
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-try:
-    from langchain_text_splitters import CharacterTextSplitter
-except ImportError:
-    from langchain.text_splitter import CharacterTextSplitter  # type: ignore
+from langchain_text_splitters import CharacterTextSplitter
+
 
 from src.lang_change_utils import build_chat_model
 
