@@ -28,7 +28,7 @@ source .venv/Scripts/activate       # Windows
 # or: source .venv/bin/activate     # Linux/Mac
 ```
 
-## Install dependencies using poetry
+## Install dependencies using poetry (recommended)
 
 ```sh
 pip install poetry          # Install poetry
@@ -42,6 +42,9 @@ langchain-openai langchain-anthropic langchain-google-genai \
 langchain-ollama langchain-huggingface \
 transformers mcp \
 python-multipart requests
+
+# Add dev dependecies
+poetry add pytest pytest-cov --group dev
 
 ```
 
