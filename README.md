@@ -12,6 +12,10 @@ ollama list              # verify it is available
 # optional additional models
 ollama pull gemma3:12b
 ollama pull qwen3:30b
+
+# Help commands
+ollama --help
+ollama [Command] --help
 ```
 
 ## Setup virtual environment and install dependencies
