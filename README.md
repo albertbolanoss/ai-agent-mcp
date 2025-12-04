@@ -18,7 +18,7 @@ ollama --help
 ollama [Command] --help
 ```
 
-## Setup virtual environment and install dependencies
+## Setup virtual environment
 ```sh
 pyenv install 3.11.9                # optional: install Python
 pyenv local 3.11.9                  # set local version
@@ -26,6 +26,31 @@ python --version                    # verify
 python -m venv .venv                # create venv
 source .venv/Scripts/activate       # Windows
 # or: source .venv/bin/activate     # Linux/Mac
+```
+
+## Install dependencies using poetry (recommended)
+
+```sh
+pip install poetry          # Install poetry
+poetry init                 # Init the pyproject.toml file
+
+# Add dependencies    
+poetry add fastapi uvicorn python-dotenv \
+sqlalchemy pydantic pydantic-settings \
+langchain langgraph langsmith \
+langchain-openai langchain-anthropic langchain-google-genai \
+langchain-ollama langchain-huggingface \
+transformers mcp \
+python-multipart requests
+
+# Add dev dependecies
+poetry add pytest pytest-cov --group dev
+
+```
+
+## Install dependencies using requirements.txt (optional)
+
+```sh
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```

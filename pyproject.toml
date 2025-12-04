@@ -1,0 +1,41 @@
+[project]
+name = "ai-agent-mcp"
+version = "0.1.0"
+description = "Labs LLM with MCP and tools"
+authors = [
+    {name = "Luis Alberto Bolaños Salazar",email = "68343185+albertbolanoss@users.noreply.github.com"}
+]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.11,<4.0"
+dependencies = [
+    "fastapi (>=0.123.8,<0.124.0)",
+    "uvicorn (>=0.38.0,<0.39.0)",
+    "python-dotenv (>=1.2.1,<2.0.0)",
+    "sqlalchemy (>=2.0.44,<3.0.0)",
+    "pydantic (>=2.12.5,<3.0.0)",
+    "pydantic-settings (>=2.12.0,<3.0.0)",
+    "langchain (>=1.1.0,<2.0.0)",
+    "langgraph (>=1.0.4,<2.0.0)",
+    "langsmith (>=0.4.53,<0.5.0)",
+    "langchain-openai (>=1.1.0,<2.0.0)",
+    "langchain-anthropic (>=1.2.0,<2.0.0)",
+    "langchain-google-genai (>=3.2.0,<4.0.0)",
+    "langchain-ollama (>=1.0.0,<2.0.0)",
+    "langchain-huggingface (>=1.1.0,<2.0.0)",
+    "transformers (>=4.57.3,<5.0.0)",
+    "mcp (>=1.23.1,<2.0.0)",
+    "python-multipart (>=0.0.20,<0.0.21)",
+    "requests (>=2.32.5,<3.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[dependency-groups]
+dev = [
+    "pytest (>=9.0.1,<10.0.0)",
+    "pytest-cov (>=7.0.0,<8.0.0)"
+]
