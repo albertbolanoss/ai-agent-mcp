@@ -12,13 +12,13 @@ class MCPClientManager:
     Keeps the MCP server process (server.py) alive and exposes tool calls.
     """
 
-    def __init__(self, max_concurrency: int | None = None) -> None:
+    def __init__(self, max_concurrency: int) -> None:
         self._stdio_cm = None
         self._session_cm = None
         self._stdio_pair: tuple[Any, Any] | None = None
         self.session: ClientSession | None = None
         self._start_lock = asyncio.Lock()
-        limit = max_concurrency or int(os.getenv("MCP_MAX_CONCURRENCY", "4"))
+        limit = max_concurrency
         self._call_semaphore = asyncio.Semaphore(max(1, limit))
 
     async def start(self) -> None:

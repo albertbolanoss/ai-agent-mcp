@@ -11,7 +11,7 @@ from fastapi.responses import HTMLResponse, StreamingResponse
 from mcp import types
 from pydantic import BaseModel, Field
 
-from src.env_vars_utils import get_llm_server
+from src.env_vars_utils import get_llm_server, get_mcp_max_concurrency
 from src.lang_change_utils import stream_chat_completion
 from src.mcp_client import MCPClientManager
 from src.query_agent import decide_tool
@@ -21,10 +21,11 @@ load_dotenv()
 app = FastAPI(title="MCP Chat Web", version="0.3.0")
 BASE_DIR = Path(__file__).resolve().parent
 HOME_TEMPLATE_PATH = BASE_DIR / "templates" / "index.html"
-
-
-mcp_manager = MCPClientManager()
 LLM_PROVIDER, LLM_MODEL, LLM_TEMPERATURE = get_llm_server()
+MCP_MAX_CONCURRENCY = get_mcp_max_concurrency()
+
+mcp_manager = MCPClientManager(MCP_MAX_CONCURRENCY)
+
 
 
 class Message(BaseModel):
@@ -34,14 +35,12 @@ class Message(BaseModel):
 
 class ChatRequest(BaseModel):
     messages: List[Message] = Field(..., description="Chat history.")
-    target_language: Optional[str] = Field(None, description="Target language for translation.")
-    translation_text: Optional[str] = Field(None, description="Optional explicit text to translate.")
     summary_text: Optional[str] = Field(
         None,
-        description="Deprecated alias for translation_text.",
+        description="Optional explicit text to summarize.",
     )
-    chunk_size: int = Field(1000, description="Only for translate tool.")
-    chunk_overlap: int = Field(0, description="Only for translate tool.")
+    chunk_size: int = Field(1000, description="Only for summarize tool.")
+    chunk_overlap: int = Field(0, description="Only for summarize tool.")
     session_id: Optional[str] = Field(
         None,
         description="Optional session identifier to retain a limited message history server-side.",
@@ -149,7 +148,7 @@ async def _shutdown() -> None:
 @app.post("/chat")
 async def chat_endpoint(request: ChatRequest):
     """
-    ChatGPT-style endpoint. The agent chooses between chat (llm_chat) or translation (translate).
+    ChatGPT-style endpoint. The agent chooses between chat (llm_chat) o resumen (summarize).
     Model/provider are resolved from environment and are not user-controlled.
     """
     await ensure_session_started()
@@ -174,7 +173,7 @@ async def chat_stream_endpoint(request: ChatRequest):
     """
     Streaming version of /chat. Emits events as SSE-style "data: {...}\\n\\n".
     - For llm_chat, tokens are streamed reactively (works with OpenAI and Ollama).
-    - For translate, emits a start and a final complete event.
+    - For summarize, emits a start and a final complete event.
     """
     await ensure_session_started()
 
