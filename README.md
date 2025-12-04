@@ -31,14 +31,31 @@ pip install -r requirements.txt
 By default, the application will run using llama 3.2 in local mode; to set another configuration, edit the .env file and set the required configuration for the query agent and llm agent.
 
 ```env
+# API keys per provider (set only what you use)
 OPENAI_API_KEY=
-OLLAMA_BASE_URL=http://localhost:11434
+GOOGLE_API_KEY=
+ANTHROPIC_API_KEY=
+
+# Router agent (tool picker) config
+# Providers: ollama | openai | gemini | anthropic
+# Models (examples):
+# - ollama: llama3.2, llama3.1, llama3.3, gemma2:9b, qwen2.5:14b, mistral, phi4
+# - openai: gpt-4o-mini, gpt-4o, gpt-3.5-turbo
+# - gemini: gemini-1.5-flash, gemini-1.5-pro
+# - anthropic: claude-3-haiku-20240307, claude-3-5-sonnet-20240620
 QUERY_AGENT_PROVIDER=ollama
 QUERY_AGENT_MODEL=llama3.2
 QUERY_AGENT_TEMPERATURE=0.1
+
+# LLM server (tools) config
+# Providers: ollama | openai | gemini | anthropic
+# Models follow the same examples as above (for ollama: llama3.2, llama3.1, llama3.3, gemma2:9b, qwen2.5:14b, mistral, phi4)
 LLM_SERVER_PROVIDER=ollama
 LLM_SERVER_MODEL=llama3.2
 LLM_SERVER_TEMPERATURE=0.7
+
+# Ollama config (local models)
+OLLAMA_BASE_URL=http://localhost:11434
 ```
 
 

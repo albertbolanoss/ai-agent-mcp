@@ -12,35 +12,38 @@ class MCPClientManager:
     Keeps the MCP server process (server.py) alive and exposes tool calls.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, max_concurrency: int | None = None) -> None:
         self._stdio_cm = None
         self._session_cm = None
         self._stdio_pair: tuple[Any, Any] | None = None
         self.session: ClientSession | None = None
-        self._lock = asyncio.Lock()
+        self._start_lock = asyncio.Lock()
+        limit = max_concurrency or int(os.getenv("MCP_MAX_CONCURRENCY", "4"))
+        self._call_semaphore = asyncio.Semaphore(max(1, limit))
 
     async def start(self) -> None:
         # If already started, do nothing.
-        if self.session:
-            return
+        async with self._start_lock:
+            if self.session:
+                return
 
-        # Create parameters to launch the MCP server process via stdio.
-        params = StdioServerParameters(
-            command=sys.executable,
-            # Run as a module so imports like `src.*` resolve correctly.
-            args=["-u", "-m", "src.mcp_server"],
-            env=os.environ.copy(),
-        )
+            # Create parameters to launch the MCP server process via stdio.
+            params = StdioServerParameters(
+                command=sys.executable,
+                # Run as a module so imports like `src.*` resolve correctly.
+                args=["-u", "-m", "src.mcp_server"],
+                env=os.environ.copy(),
+            )
 
-        # The MCP server is launched and the communication channels to be used by the MCP session are obtained via stdio.
-        self._stdio_cm = stdio_client(params)
-        self._stdio_pair = await self._stdio_cm.__aenter__()
-        read, write = self._stdio_pair
+            # The MCP server is launched and the communication channels to be used by the MCP session are obtained via stdio.
+            self._stdio_cm = stdio_client(params)
+            self._stdio_pair = await self._stdio_cm.__aenter__()
+            read, write = self._stdio_pair
 
-        # Create and initialize the MCP client session.
-        self._session_cm = ClientSession(read, write)
-        self.session = await self._session_cm.__aenter__()
-        await self.session.initialize()
+            # Create and initialize the MCP client session.
+            self._session_cm = ClientSession(read, write)
+            self.session = await self._session_cm.__aenter__()
+            await self.session.initialize()
 
     async def stop(self) -> None:
         if self._session_cm:
@@ -57,5 +60,7 @@ class MCPClientManager:
         if not self.session:
             raise RuntimeError("MCP session not started")
 
-        async with self._lock:
+        # Allow multiple concurrent tool calls while still preventing MCP
+        # stdio framing from being overwhelmed.
+        async with self._call_semaphore:
             return await self.session.call_tool(name, arguments)

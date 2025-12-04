@@ -4,11 +4,12 @@
   <meta charset="UTF-8" />
   <title>MCP Chat Web</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; max-width: 720px; }
-    #messages { border: 1px solid #ccc; padding: 12px; height: 400px; overflow-y: auto; }
-    .msg { margin-bottom: 12px; }
+    body { font-family: Arial, sans-serif; margin: 20px; max-width: 780px; }
+    #messages { border: 1px solid #ccc; padding: 12px; height: 420px; overflow-y: auto; background: #fafafa; }
+    .msg { margin-bottom: 12px; line-height: 1.4; }
     .user { color: #0a4; }
     .assistant { color: #06c; }
+    .meta { color: #666; font-size: 12px; }
     textarea { width: 100%; height: 80px; }
     button { padding: 8px 16px; }
   </style>
@@ -27,9 +28,11 @@
     function append(role, text) {
       const div = document.createElement('div');
       div.className = 'msg ' + role;
+      div.dataset.role = role;
       div.textContent = role.toUpperCase() + ': ' + text;
       messagesEl.appendChild(div);
       messagesEl.scrollTop = messagesEl.scrollHeight;
+      return div;
     }
 
     async function send() {
@@ -43,13 +46,54 @@
         session_id: sessionEl.value || null
       };
 
-      const res = await fetch('/chat', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      append('assistant', data.reply || '[no reply]');
+      const assistantNode = append('assistant', '...');
+      let buffer = '';
+      let assembled = '';
+
+      try {
+        const res = await fetch('/chat/stream', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(payload),
+        });
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+
+          const events = buffer.split('\n\n');
+          buffer = events.pop() || '';
+
+          for (const evt of events) {
+            if (!evt.startsWith('data:')) continue;
+            const jsonStr = evt.replace(/^data:\s*/, '');
+            if (!jsonStr) continue;
+            let payload;
+            try {
+              payload = JSON.parse(jsonStr);
+            } catch (e) {
+              continue;
+            }
+
+            if (payload.type === 'token') {
+              assembled += payload.delta || '';
+            } else if (payload.type === 'complete' || payload.type === 'router_reply') {
+              assembled = payload.reply || assembled;
+            } else if (payload.type === 'error') {
+              assembled = payload.message || 'Unexpected error';
+            }
+
+            assistantNode.textContent = 'ASSISTANT: ' + assembled;
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+          }
+        }
+      } catch (err) {
+        assistantNode.textContent = 'ASSISTANT: [stream error] ' + err;
+      }
     }
   </script>
 </body>

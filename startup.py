@@ -1,17 +1,20 @@
 import asyncio
+import json
 import os
 from functools import lru_cache
 from pathlib import Path
-from typing import List, Literal, Optional
+from typing import Any, AsyncIterator, List, Literal, Optional
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from mcp import types
 from pydantic import BaseModel, Field
 
-from src.query_agent import decide_tool
+from src.env_vars_utils import get_llm_server
+from src.lang_change_utils import stream_chat_completion
 from src.mcp_client import MCPClientManager
+from src.query_agent import decide_tool
 
 load_dotenv()
 
@@ -21,6 +24,7 @@ HOME_TEMPLATE_PATH = BASE_DIR / "templates" / "index.html"
 
 
 mcp_manager = MCPClientManager()
+LLM_PROVIDER, LLM_MODEL, LLM_TEMPERATURE = get_llm_server()
 
 
 class Message(BaseModel):
@@ -92,6 +96,30 @@ async def ensure_session_started() -> None:
         raise HTTPException(status_code=500, detail=f"Could not start MCP: {exc}") from exc
 
 
+def _stream_event(payload: dict[str, Any]) -> str:
+    return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+
+async def _stream_llm_chat(arguments: dict[str, Any]) -> AsyncIterator[str]:
+    """
+    Stream LLM responses token by token for chat conversations.
+    """
+    messages = []
+    system = arguments.get("system")
+    if system:
+        messages.append({"role": "system", "content": system})
+    messages.append({"role": "user", "content": arguments.get("user", "")})
+
+    async for token in stream_chat_completion(
+        messages,
+        provider=LLM_PROVIDER,
+        model=LLM_MODEL,
+        temperature=LLM_TEMPERATURE,
+    ):
+        if token:
+            yield token
+
+
 @lru_cache(maxsize=1)
 def load_home_template() -> str:
     try:
@@ -139,6 +167,53 @@ async def chat_endpoint(request: ChatRequest):
             raise HTTPException(status_code=500, detail=f"Error calling tool {user_intent['tool']}: {exc}") from exc
     
     return user_intent
+
+
+@app.post("/chat/stream")
+async def chat_stream_endpoint(request: ChatRequest):
+    """
+    Streaming version of /chat. Emits events as SSE-style "data: {...}\\n\\n".
+    - For llm_chat, tokens are streamed reactively (works with OpenAI and Ollama).
+    - For translate, emits a start and a final complete event.
+    """
+    await ensure_session_started()
+
+    merged_messages = await session_memory.merge(request.session_id, request.messages, request.max_context_messages)
+    user_intent = decide_tool([m.model_dump() for m in merged_messages])
+
+    async def event_generator() -> AsyncIterator[str]:
+        if user_intent["isCompleted"] != "true":
+            yield _stream_event({"type": "router_reply", "reply": user_intent["reply"]})
+            return
+
+        tool = user_intent["tool"]
+        arguments = user_intent["arguments"]
+
+        yield _stream_event({"type": "start", "tool": tool})
+
+        if tool == "llm_chat":
+            transcript: list[str] = []
+            async for token in _stream_llm_chat(arguments):
+                transcript.append(token)
+                yield _stream_event({"type": "token", "delta": token})
+
+            yield _stream_event({"type": "complete", "tool": tool, "reply": "".join(transcript)})
+            return
+
+        try:
+            result = await mcp_manager.call_tool(tool, arguments)
+            reply_text = extract_text_content(result)
+            yield _stream_event({"type": "complete", "tool": tool, "reply": reply_text})
+        except Exception as exc:
+            yield _stream_event(
+                {
+                    "type": "error",
+                    "tool": tool,
+                    "message": f"Error calling tool {tool}: {exc}",
+                }
+            )
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 @app.get("/health")
